@@ -1,0 +1,9 @@
+#!/bin/sh
+
+# Copyright (C) 2009 Andy Spencer
+# See ../COPYING for terms
+
+while (true); do
+	"$@"
+	echo Process $! died, waiting 1 second to respawn
+done

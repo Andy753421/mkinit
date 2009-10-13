@@ -1,0 +1,79 @@
+#!/bin/sh
+
+# Copyright (C) 2009 Andy Spencer
+# See ../COPYING for terms
+
+echo
+echo "mkinit -- starting"
+
+function runamk {
+	/usr/lib/plan9/bin/mk \
+		-f /etc/init.mk \
+		-i -k "$@"
+}
+
+# Handle arguments
+TEST=false
+cmd=boot
+case "$1" in
+-t )
+	TEST=true
+	export P="true"
+	;;
+-n )
+	cmd=""
+	;;
+esac
+
+
+# Main loop
+echo "mkinit -- entering main loop"
+while true; do
+	case "$cmd" in
+	boot )
+		echo "mkinit -- booting"
+		if runamk -a && ! $TEST; then
+			# booted successuflly, redirect input
+			echo "skipping redirect"
+			#pipe=/lib/mkinit/cmd
+			#[ -p pipe ] || mkfifo $pipe
+			#exec 0< $pipe
+		fi
+		;;
+	halt )
+		echo "mkinit -- halting"
+		runamk "halt"
+		# exit
+		;;
+	restart )
+		if [ "$args" ]; then
+			echo "mkinit -- restarting $args"
+			runamk "stop-$args"
+			runamk "start-$args"
+		fi
+		;;
+	start|stop|zap|status )
+		if [ "$args" ]; then
+			echo "mkinit -- ${cmd}ing $args"
+			runamk "${cmd}-$args"
+		fi
+		;;
+	mk )
+		if [ "$args" ]; then
+			echo "mkinit -- running mk cmd [$args]"
+			runamk "$args"
+		fi
+		;;
+	reload )
+		exec /sbin/mkinit -n
+		;;
+	eval )
+		$args
+		;;
+	?* )
+		echo "unknown command [$cmd $args]"
+		;;
+	esac
+	echo -n "mkinit> "
+	read cmd args
+done

@@ -1,0 +1,34 @@
+mkinit is a tiny init daemon that relies on mk for determining the order init
+services need to be executed. 
+
+
+Init scripts
+------------
+Init scripts take the form of mk rules contained in /etc/init.mk. Services are
+started by calling  the `start-<service>' rule and stopped by calling
+`stop-service'. Services should use `:Pservice -[ud]:' to determine whether the
+script needs to be invoked.
+
+For simple services consisting of a single start and stop command which no
+dependencies other than boot, the default start-stop rules can be used by
+setting `<service>_start_cmd' and `<service>_stop_cmd'.
+
+Dependencies are handled by adding `start-<dependency>' to the rules list of
+dependencies. When stopping a service, `stop-<service>' should be added to the
+list of dependencies for the dependency.
+
+
+Files
+-----
+COPYING - Licencing terms (MIT)
+README  - This file
+mkfile  - For [un]installing mkinit
+init.mk - Example database of init scripts
+
+bin/mkinit  - The actual init program it runs main loop and calls mk on
+              init.mk whenever services need to be started and stopped.
+bin/respawn - Used to respawn gettys and such
+bin/service - Set or query the state of a service
+
+
+# tw=80
