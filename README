@@ -1,6 +1,9 @@
 mkinit is a tiny init daemon that relies on mk for determining the order init
 services need to be executed. 
 
+WARNING: This code is not very well tested, you should probably run `mkinit -t'
+a few times as root before actually trying using init=/sbin/mkinit.
+
 
 Init scripts
 ------------
