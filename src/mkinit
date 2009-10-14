@@ -3,36 +3,65 @@
 # Copyright (C) 2009 Andy Spencer
 # See ../COPYING for terms
 
-echo
-echo "mkinit -- starting"
+function usage {
+cat - <<EOF
+usage: $0 [options] [command]
+
+Options:
+  -h,--help    Print usage information
+  -t,--test    Fake all commands
+
+Command:
+  boot         Execute boot-up procedures
+  halt         Execute shutdown procedures
+  reload       Re-execute init process
+  mk <rule>    Execute mk rule
+  start|stop|restart|zap|status <service>
+               Start,stop,restart,zap or query status of service
+  eval <cmd>   Execute command in mkinit process
+EOF
+exit
+}
 
 function runamk {
+	[ "$TEST" ] && export P=true
 	/usr/lib/plan9/bin/mk \
 		-f /etc/init.mk \
 		-i -k "$@"
 }
 
 # Handle arguments
-TEST=false
-cmd=boot
-case "$1" in
--t )
-	TEST=true
-	export P="true"
-	;;
--n )
-	cmd=""
-	;;
-esac
-
+TEMP=`getopt -n "$0" \
+	--options     th \
+	--longoptions test,help \
+	-- "$@"`
+[ $? != 0 ] && usage
+eval set -- "$TEMP"
+while true; do
+	[ "$TEST" ] && echo "\$1=$1"
+	case "$1" in
+	-h|--help   ) usage ;;
+	-t|--test   ) TEST=true; shift ;;
+	--          ) shift; cmd="$1";
+	              shift; args="$@";
+	              break ;;
+	*           ) ;;
+	esac
+done
+if [ "$TEST" ]; then
+	echo "Options"
+	echo "  test=$TEST"
+	echo "  cmd=$cmd"
+	echo "  args=$args"
+fi
 
 # Main loop
-echo "mkinit -- entering main loop"
 while true; do
 	case "$cmd" in
 	boot )
+		echo
 		echo "mkinit -- booting"
-		if runamk -a && ! $TEST; then
+		if runamk -a "$args" && ! [ "$TEST" ]; then
 			# booted successuflly, redirect input
 			echo "skipping redirect"
 			#pipe=/lib/mkinit/cmd
@@ -40,10 +69,13 @@ while true; do
 			#exec 0< $pipe
 		fi
 		;;
-	halt )
-		echo "mkinit -- halting"
+	halt|reboot|poweroff )
+		echo "mkinit -- ${cmd}ing"
 		runamk "halt"
-		# exit
+		if [ "$args" -o "$cmd" = reboot -o "$cmd" = poweroff ]; then
+			# mk handles syncing and logging message
+			${TEST:+echo} $cmd -ndf $args
+		fi
 		;;
 	restart )
 		if [ "$args" ]; then
@@ -65,7 +97,7 @@ while true; do
 		fi
 		;;
 	reload )
-		exec /sbin/mkinit -n
+		exec /sbin/mkinit ${TEST:+"-t"}
 		;;
 	eval )
 		$args
@@ -74,6 +106,6 @@ while true; do
 		echo "unknown command [$cmd $args]"
 		;;
 	esac
-	echo -n "mkinit> "
-	read cmd args
+	read -e -p "mkinit> " cmd args
+	history -s $cmd $args
 done
