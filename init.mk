@@ -17,7 +17,7 @@ NPROC=10
 # Runlevels
 user   = alsa keymap polipo spam
 system = at cron hddtemp hostname hwclock i8k sshd swap syslog
-bare   = cpufreq fsclean getty localhost modules mounts uevents utmp
+bare   = cpufreq fsclean getty qingy localhost modules mounts uevents utmp
 
 default:V: user
 

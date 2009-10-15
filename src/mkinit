@@ -16,6 +16,7 @@ usage: $0 [options] [command]
 
 Options:
   -h,--help    Print usage information
+  -r,--relaod  Prevent spawning listeners when reloading
   -t,--test    Fake all commands
 
 Command:
@@ -116,16 +117,28 @@ fi
 
 if [ ! "$RELOAD" ]; then
 	# Fork /dev/initctl listener
+	( exec 0<&- 1<&- 2<&-
 	initctld $INITCTL |
 	while read line; do
 		echo $line > $CMD
-	done &
+	done ) &
 
 	# Fork console listener
-	while read -e -p "mkinit> " line; do
-		echo $line > $CMD
-		history -s $line
-	done <&0 &
+	# Readline uses stdin,stderr
+	( exec 1<&-;
+	while true; do
+		while read -e -p "mkinit> " line; do
+			echo $line > $CMD
+			history -s $line
+		done
+		[ "$TEST" ] && break
+		exec 0</dev/console 2>/dev/console
+		echo "Respawning on /dev/console.." >&2
+		sleep 1
+	done) <&0 &
+
+	# Close stdin, stderr
+	exec 0<&- 2<&-
 fi
 
 # Kill listeners on exit
@@ -133,7 +146,7 @@ trap "pkill -HUP -P $$ initctld" EXIT
 
 # Main loop
 while true; do
-while line=$(line); do
+while read line; do
 	process $line
 done < $CMD
 done
