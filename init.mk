@@ -15,7 +15,7 @@ NPROC=10
 #	service -D $target
 
 # Runlevels
-user   = alsa keymap polipo spam
+user   = alsa keymap polipo spam dbus
 system = at cron hddtemp hostname hwclock i8k sshd swap syslog
 bare   = cpufreq fsclean getty qingy localhost modules mounts uevents utmp
 
@@ -172,6 +172,12 @@ alsa-stop_cmd=alsactl store
 
 sshd-start_cmd=/usr/sbin/sshd
 sshd-stop_cmd=pkill sshd
+
+dbus-start:QVPservice -u: localhost-start
+	echo Starting dbus
+	$P /usr/bin/dbus-daemon -- --system
+	service -U $target
+dbus-stop_cmd=pkill dbus-daemon
 
 spam-start:QVPservice -u: localhost-start
 	echo Starting spam
