@@ -1,8 +1,15 @@
-#!/bin/sh
+#!/bin/bash
 
 # Copyright (C) 2009 Andy Spencer
 # See ../COPYING for terms
 
+# GLobals
+CMD=/lib/mkinit/cmd
+INITCTL=/dev/initctl
+PATH=/lib/mkinit/bin:/bin:/sbin:/usr/bin:/usr/sbin
+export PATH
+
+# Functions 
 function usage {
 cat - <<EOF
 usage: $0 [options] [command]
@@ -30,10 +37,55 @@ function runamk {
 		-i -k "$@"
 }
 
+function process {
+	cmd="$1"
+	shift
+	args="$@"
+	case "$cmd" in
+	boot )
+		echo
+		echo "mkinit -- booting"
+		runamk -a "$args"
+		;;
+	restart )
+		if [ "$args" ]; then
+			echo "mkinit -- restarting $args"
+			runamk "$args-stop"
+			runamk "$args-start"
+		fi
+		;;
+	start|stop|zap|status )
+		if [ "$args" ]; then
+			echo "mkinit -- ${cmd}ing $args"
+			runamk "$args-$cmd"
+		fi
+		;;
+	mk|runlevel )
+		if [ "$args" ]; then
+			[ "$cmd" = mk ] &&
+				echo "mkinit -- running mk cmd [$args]"
+			[ "$cmd" = runlevel ] &&
+				echo "mkinit -- entering runlevel $args"
+			runamk "$args"
+		fi
+		;;
+	reload )
+		echo "mkinit -- ${cmd}ing"
+		exec $0 -r ${TEST:+"-t"}
+		;;
+	eval )
+		eval $args
+		;;
+	?* )
+		echo "mkinit -- unknown command [$cmd $args]"
+		;;
+	esac
+}
+
 # Handle arguments
 TEMP=`getopt -n "$0" \
-	--options     th \
-	--longoptions test,help \
+	--options     hrt \
+	--longoptions help,reload,test \
 	-- "$@"`
 [ $? != 0 ] && usage
 eval set -- "$TEMP"
@@ -41,6 +93,7 @@ while true; do
 	[ "$TEST" ] && echo "\$1=$1"
 	case "$1" in
 	-h|--help   ) usage ;;
+	-r|--reload ) RELOAD=true; shift ;;
 	-t|--test   ) TEST=true; shift ;;
 	--          ) shift; cmd="$1";
 	              shift; args="$@";
@@ -48,64 +101,39 @@ while true; do
 	*           ) ;;
 	esac
 done
+
+# Initial boot-up
+process $cmd $args
+
 if [ "$TEST" ]; then
+	CMD=/tmp/pipe
 	echo "Options"
 	echo "  test=$TEST"
+	echo "  reload=$RELOAD"
 	echo "  cmd=$cmd"
 	echo "  args=$args"
 fi
 
+if [ ! "$RELOAD" ]; then
+	# Fork /dev/initctl listener
+	initctld $INITCTL |
+	while read line; do
+		echo $line > $CMD
+	done &
+
+	# Fork console listener
+	while read -e -p "mkinit> " line; do
+		echo $line > $CMD
+		history -s $line
+	done <&0 &
+fi
+
+# Kill listeners on exit
+trap "pkill -HUP -P $$ initctld" EXIT
+
 # Main loop
 while true; do
-	case "$cmd" in
-	boot )
-		echo
-		echo "mkinit -- booting"
-		if runamk -a "$args" && ! [ "$TEST" ]; then
-			# booted successuflly, redirect input
-			echo "skipping redirect"
-			#pipe=/lib/mkinit/cmd
-			#[ -p pipe ] || mkfifo $pipe
-			#exec 0< $pipe
-		fi
-		;;
-	halt|reboot|poweroff )
-		echo "mkinit -- ${cmd}ing"
-		runamk "halt"
-		if [ "$args" -o "$cmd" = reboot -o "$cmd" = poweroff ]; then
-			# mk handles syncing and logging message
-			${TEST:+echo} $cmd -ndf $args
-		fi
-		;;
-	restart )
-		if [ "$args" ]; then
-			echo "mkinit -- restarting $args"
-			runamk "stop-$args"
-			runamk "start-$args"
-		fi
-		;;
-	start|stop|zap|status )
-		if [ "$args" ]; then
-			echo "mkinit -- ${cmd}ing $args"
-			runamk "${cmd}-$args"
-		fi
-		;;
-	mk )
-		if [ "$args" ]; then
-			echo "mkinit -- running mk cmd [$args]"
-			runamk "$args"
-		fi
-		;;
-	reload )
-		exec /sbin/mkinit ${TEST:+"-t"}
-		;;
-	eval )
-		$args
-		;;
-	?* )
-		echo "unknown command [$cmd $args]"
-		;;
-	esac
-	read -e -p "mkinit> " cmd args
-	history -s $cmd $args
+while line=$(line); do
+	process $line
+done < $CMD
 done

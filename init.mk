@@ -2,26 +2,36 @@
 # See COPYING for terms
 
 # Config
-PATH=/lib/mkinit/bin:/bin:/sbin:/usr/bin:/usr/sbin
 MKSHELL=/usr/lib/plan9/bin/rc
 NPROC=10
 
 # Example
-#start-test:VQPservice -u: start-foo
+#test-start:VQPservice -u: foo-start
 #	echo starting test
 #	service -U $target
 #
-#stop-test:VQPservice -d: /
+#test-stop:VQPservice -d: /
 #	echo stopping test
 #	service -D $target
 
 # Runlevels
-# Make getty wait (for bootchart)
+user   = alsa keymap polipo spam
+system = at cron hddtemp hostname hwclock i8k sshd swap syslog
+bare   = cpufreq fsclean getty localhost modules mounts uevents utmp
+
 default:V: user
 
-user:V:   system `{echo start-^(alsa keymap polipo spam)}
-system:V: bare   `{echo start-^(at cron hddtemp hostname hwclock i8k sshd swap syslog)}
-bare:V:          `{echo start-^(cpufreq fsclean getty localhost modules mounts uevents)}
+user:V:   `{echo $user^-start $system^-start $bare^-start}
+system:V: `{echo $user^-stop  $system^-start $bare^-start}
+bare:V:   `{echo $user^-stop  $system^-stop  $bare^-start}
+single:V: `{echo $user^-stop  $system^-stop  $bare^-stop }
+
+poweroff:V: halt 
+	$P poweroff -ndf
+reboot:V: halt
+	$P reboot -ndf
+kexec:V: halt
+	$P reboot -ndfk
 
 # Initial setup/shutdown for mkinit
 boot:QVEPservice -u: /
@@ -33,7 +43,7 @@ boot:QVEPservice -u: /
 	service -U $target
 
 # Kill all process, then remount and sync
-halt:QVE: stop-utmp stop-hwclock stop-alsa
+halt:QVE: utmp-stop hwclock-stop alsa-stop
 	echo Stopping init
 	rm -f /lib/mkinit/state/*
 	
@@ -50,8 +60,10 @@ halt:QVE: stop-utmp stop-hwclock stop-alsa
 	$P mount -o remount,ro /
 	$P sync
 
+# Bare
+# ----
 # Proc, mtab, udev, fstab
-start-mounts:QVPservice -u: boot
+mounts-start:QVPservice -u: boot
 	echo Starting mounts
 	$P cat /proc/mounts > /etc/mtab
 	$P udevd --daemon
@@ -59,42 +71,44 @@ start-mounts:QVPservice -u: boot
 	service -U $target
 
 # Load kernel modules
-start-modules:QVEPservice -u: boot
+modules-start:QVEPservice -u: boot
 	echo Starting modules
 	$P modprobe uvesafb
 	service -U $target
 
 # Trigger udev uevents
-start-uevents:QVEPservice -u:  start-mounts
+uevents-start:QVEPservice -u:  mounts-start
 	echo Starting uevents
 	$P udevadm trigger
 	$P udevadm settle '--timeout=10'
 	service -U $target
 
 # Clean out /tmp and /var/run directories
-start-fsclean:QVPservice -u: boot
+fsclean-start:QVPservice -u: boot
 	echo Starting fsclean
 	$P rm -rf /tmp/* 
 	$P rm -rf /var/run/*
 	service -U $target
 
 # Spawn gettys for tty[456]
-start-getty:QVPservice -u: start-hostname start-utmp
+getty-start:QVPservice -u: hostname-start utmp-start
 	echo Starting getty
 	$P respawn /sbin/agetty 38400 tty4 linux &
 	$P respawn /sbin/agetty 38400 tty5 linux &
 	$P respawn /sbin/agetty 38400 tty6 linux &
 	service -U $target
+getty-stop_cmd=pkill agetty
 
 # Spawn qingys for tty[23]
-start-qingy:QVPservice -u: start-hostname start-utmp start-modules start-uevents
+qingy-start:QVPservice -u: hostname-start utmp-start modules-start uevents-start
 	echo Starting qingy
 	$P respawn /sbin/qingy tty2 &
 	$P respawn /sbin/qingy tty3 &
 	service -U $target
+getty-stop_cmd=pkill qingy
 
 # Login records
-start-utmp:QVPservice -u: start-fsclean
+utmp-start:QVPservice -u: fsclean-start
 	echo Starting utmp
 	for (i in /var/run/utmp /var/log/wtmp) {
 		echo -n > $i
@@ -102,81 +116,94 @@ start-utmp:QVPservice -u: start-fsclean
 		chmod 0664 $i
 	}
 	service -U $target
-utmp_stop_cmd=halt -w
+utmp-stop_cmd=halt -w
 
 # CPU freq
-start-cpufreq:QVPservice -u: start-uevents
+cpufreq-start:QVPservice -u: uevents-start
 	echo Starting cpufreq
 	cpufreq-set -g ondemand
 	service -U $target
 
 # Keymap (us-cc = us with ctrl-capslock switched)
-keymap_start_cmd=loadkeys -u us-cc
+keymap-start_cmd=loadkeys -u us-cc
 
 # Localhost
-localhost_start_cmd=ifconfig lo 127.0.0.1
-localhost_stop_cmd=ifconfig lo down
+localhost-start_cmd=ifconfig lo 127.0.0.1
+localhost-stop_cmd=ifconfig lo down
 
 # Set hostname
-hostname_start_cmd=hostname b
+hostname-start_cmd=hostname b
 
 # Kernel parameters
-sysctl_start_cmd=sysctl -p
+sysctl-start_cmd=sysctl -p
 
 
 # Console
 # -------
-at_start_cmd=atd
-cron_start_cmd=cron
-hwclock_start_cmd=hwclock --hctosys --utc
-hwclock_stop_cmd=hwclock --systohc --utc
-swap_start_cmd=swapon -a
-swap_stop_cmd=swapoff -a
-start-syslog:QVPservice -u: start-mounts
+at-start_cmd=atd
+at-stop_cmd=pkill atd
+
+cron-start_cmd=cron
+cron-stop_cmd=pkill cron
+
+hwclock-start_cmd=hwclock --hctosys --utc
+hwclock-stop_cmd=hwclock --systohc --utc
+
+swap-start_cmd=swapon -a
+swap-stop_cmd=swapoff -a
+
+syslog-start:QVPservice -u: mounts-start
 	echo Starting syslog;
 	$P syslog-ng
 	service -U $target
-start-hddtemp:QVPservice -u: start-localhost
+syslog-stop_cmd=pkill syslog
+
+hddtemp-start:QVPservice -u: localhost-start
 	echo Starting hddtemp
 	$P hddtemp -d -l 127.0.0.1 /dev/sda
 	service -U $target
-hddtemp_stop_cmd=pkill hddtemp
+hddtemp-stop_cmd=pkill hddtemp
 
 
 # Desktop
 # -------
-alsa_start_cmd=alsactl restore
-alsa_stop_cmd=alsactl store
-sshd_start_cmd=/usr/sbin/sshd
-start-spam:QVPservice -u: start-localhost
+alsa-start_cmd=alsactl restore
+alsa-stop_cmd=alsactl store
+
+sshd-start_cmd=/usr/sbin/sshd
+sshd-stop_cmd=pkill sshd
+
+spam-start:QVPservice -u: localhost-start
 	echo Starting spam
 	$P spamd -d
 	service -U $target
-start-polipo:QVPservice -u: start-localhost
+spam-stop_cmd=pkill spamd
+
+polipo-start:QVPservice -u: localhost-start
 	echo Starting poliop
 	$P polipo
 	service -U $target
-polipo_stop_cmd=pkill polipo
+polipo-stop_cmd=pkill polipo
 
 
 # Library 
 # -------
-start-%:QVPservice -u: boot
-	if (~ $#($stem^_start_cmd) 0)
+%-start:QVPservice -u: boot
+	if (~ $#($stem^-start_cmd) 0)
 		exit 0
 	echo Starting $stem
-	$P $($stem^_start_cmd)
+	$P $($stem^-start_cmd)
 	service -U $target
 
-stop-%:QVPservice -d: /
-	if (~ $#($stem^_stop_cmd) 0)
+%-stop:QVPservice -d: /
+	if (~ $#($stem^-stop_cmd) 0)
 		exit 0
 	echo Stopping $stem
-	$P $($stem^_stop_cmd)
+	$P $($stem^-stop_cmd)
 	service -D $target
 
-zap-%:QVPservice -d: /
+%-zap:QVPservice -d: /
 	service -D $target
 
-status-%:QV:
+%-status:QV:
 	service -q $target

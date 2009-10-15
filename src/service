@@ -20,7 +20,7 @@ exit
 STATE=/lib/mkinit/state
 
 action="$1"
-service="${2/*-}"
+service="${2/-*}"
 
 [ "$action" -a "$service" ] || usage
 
