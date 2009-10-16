@@ -173,9 +173,10 @@ alsa-stop_cmd=alsactl store
 sshd-start_cmd=/usr/sbin/sshd
 sshd-stop_cmd=pkill sshd
 
-dbus-start:QVPservice -u: localhost-start
+dbus-start:QVPservice -u: fsclean-start localhost-start
 	echo Starting dbus
-	$P /usr/bin/dbus-daemon -- --system
+	$P mkdir -p /var/run/dbus
+	$P /usr/bin/dbus-daemon --system
 	service -U $target
 dbus-stop_cmd=pkill dbus-daemon
 

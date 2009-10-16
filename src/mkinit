@@ -45,6 +45,7 @@ function process {
 	cmd=$1
 	shift
 	arg=$*
+	exec 1>/dev/console
 	case "$cmd" in
 	boot )
 		echo
@@ -88,6 +89,12 @@ function process {
 	esac
 }
 
+# Telinit
+if [ $$ != 1 -a $1 != "-t" ]; then
+	echo "$@" > $FIFO
+	exit
+fi
+
 # Handle arguments
 TMP=`getopt -n "$0" \
 	--options     hrt \
@@ -119,7 +126,7 @@ shift; cmd=$1
 shift; arg=$*
 
 # Debugging output
-if [ "$TEST" ]; then
+if $TEST; then
 	echo 'Options'
 	echo '  test:' $TEST
 	echo '  reload:' $RELOAD
@@ -137,7 +144,7 @@ test ! -e $INITCTL &&
 process $cmd $arg
 
 # Fork listeners
-if [ ! "$RELOAD" ]; then
+if ! $RELOAD; then
 	# Fork /dev/initctl listener
 	( exec 0<&- 1<&- 2<&-
 	initctld $INITCTL |
@@ -153,7 +160,7 @@ if [ ! "$RELOAD" ]; then
 			echo $line > $FIFO
 			history -s $line
 		done
-		[ "$TEST" ] && break
+		$TEST && break
 		exec 0</dev/console 2>/dev/console
 		echo "Respawning on /dev/console.." >&2
 		sleep 1
