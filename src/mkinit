@@ -4,123 +4,145 @@
 # See ../COPYING for terms
 
 # GLobals
-CMD=/lib/mkinit/cmd
+TEST=false
+RELOAD=false
+FIFO=/lib/mkinit/cmd
 INITCTL=/dev/initctl
 PATH=/lib/mkinit/bin:/bin:/sbin:/usr/bin:/usr/sbin
 export PATH
 
 # Functions 
 function usage {
-cat - <<EOF
-usage: $0 [options] [command]
-
-Options:
-  -h,--help    Print usage information
-  -r,--relaod  Prevent spawning listeners when reloading
-  -t,--test    Fake all commands
-
-Command:
-  boot         Execute boot-up procedures
-  halt         Execute shutdown procedures
-  reload       Re-execute init process
-  mk <rule>    Execute mk rule
-  start|stop|restart|zap|status <service>
-               Start,stop,restart,zap or query status of service
-  eval <cmd>   Execute command in mkinit process
-EOF
-exit
+	echo 'usage: '$0' [options] [command]'
+	echo 
+	echo 'Options:'
+	echo '  -h,--help    Print usage information'
+	echo '  -r,--relaod  Prevent spawning listeners when reloading'
+	echo '  -t,--test    Fake all commands'
+	echo
+	echo 'Command:'
+	echo '  boot         Execute boot-up procedures'
+	echo '  halt         Execute shutdown procedures'
+	echo '  reload       Re-execute init process'
+	echo '  mk <rule>    Execute mk rule'
+	echo '  start|stop|restart|zap|status <service>'
+	echo '               Start,stop,restart,zap or query status of service'
+	echo '  eval <cmd>   Execute command in mkinit process'
+	exit
 }
 
+# Run mk on the init scripts
 function runamk {
-	[ "$TEST" ] && export P=true
+	$TEST && 
+		export P=true
 	/usr/lib/plan9/bin/mk \
 		-f /etc/init.mk \
 		-i -k "$@"
 }
 
+# Process one command
 function process {
-	cmd="$1"
+	cmd=$1
 	shift
-	args="$@"
+	arg=$*
 	case "$cmd" in
 	boot )
 		echo
-		echo "mkinit -- booting"
-		runamk -a "$args"
+		echo mkinit -- booting
+		runamk -a "$arg"
 		;;
 	restart )
-		if [ "$args" ]; then
-			echo "mkinit -- restarting $args"
-			runamk "$args-stop"
-			runamk "$args-start"
+		if [ "$arg" ]; then
+			echo mkinit -- restarting $arg
+			runamk "$arg"-stop
+			runamk "$arg"-start
 		fi
 		;;
 	start|stop|zap|status )
-		if [ "$args" ]; then
-			echo "mkinit -- ${cmd}ing $args"
-			runamk "$args-$cmd"
+		if [ "$arg" ]; then
+			echo mkinit -- ${cmd}ing $arg
+			runamk "$arg-$cmd"
 		fi
 		;;
 	mk|runlevel )
-		if [ "$args" ]; then
+		if [ "$arg" ]; then
 			[ "$cmd" = mk ] &&
-				echo "mkinit -- running mk cmd [$args]"
+				echo mkinit -- running mk cmd [$arg]
 			[ "$cmd" = runlevel ] &&
-				echo "mkinit -- entering runlevel $args"
-			runamk "$args"
+				echo mkinit -- entering runlevel $arg
+			runamk "$arg"
 		fi
 		;;
 	reload )
-		echo "mkinit -- ${cmd}ing"
-		exec $0 -r ${TEST:+"-t"}
+		echo mkinit -- ${cmd}ing
+		$TEST && 
+			opt=-t
+		exec $0 -r $opt
 		;;
 	eval )
-		eval $args
+		eval $arg
 		;;
 	?* )
-		echo "mkinit -- unknown command [$cmd $args]"
+		echo mkinit -- unknown command [$cmd] [$arg]
 		;;
 	esac
 }
 
 # Handle arguments
-TEMP=`getopt -n "$0" \
+TMP=`getopt -n "$0" \
 	--options     hrt \
 	--longoptions help,reload,test \
 	-- "$@"`
-[ $? != 0 ] && usage
-eval set -- "$TEMP"
-while true; do
-	[ "$TEST" ] && echo "\$1=$1"
+[ $? != 0 ] &&
+	usage
+eval set -- "$TMP"
+while [ ! "$1" == "--" ]; do
+	$TEST &&
+		echo '$1=' $1
 	case "$1" in
-	-h|--help   ) usage ;;
-	-r|--reload ) RELOAD=true; shift ;;
-	-t|--test   ) TEST=true; shift ;;
-	--          ) shift; cmd="$1";
-	              shift; args="$@";
-	              break ;;
-	*           ) ;;
+	-h|--help )
+		usage
+		;;
+	-r|--reload )
+		RELOAD=true
+		;;
+	-t|--test )
+		TEST=true
+		FIFO=/tmp/pipe
+		INITCTL=/tmp/initctl
+		trap "pkill -HUP -P $$" EXIT
+		;;
 	esac
+	shift
 done
+shift; cmd=$1
+shift; arg=$*
 
-# Initial boot-up
-process $cmd $args
-
+# Debugging output
 if [ "$TEST" ]; then
-	CMD=/tmp/pipe
-	echo "Options"
-	echo "  test=$TEST"
-	echo "  reload=$RELOAD"
-	echo "  cmd=$cmd"
-	echo "  args=$args"
+	echo 'Options'
+	echo '  test:' $TEST
+	echo '  reload:' $RELOAD
+	echo '  cmd:' $cmd
+	echo '  arg:' $arg
 fi
 
+# Create fifos if they don't exist
+test ! -e $FIFO &&
+	mkfifo $FIFO
+test ! -e $INITCTL &&
+	mkfifo $INITCTL
+
+# Initial boot-up
+process $cmd $arg
+
+# Fork listeners
 if [ ! "$RELOAD" ]; then
 	# Fork /dev/initctl listener
 	( exec 0<&- 1<&- 2<&-
 	initctld $INITCTL |
 	while read line; do
-		echo $line > $CMD
+		echo $line > $FIFO
 	done ) &
 
 	# Fork console listener
@@ -128,7 +150,7 @@ if [ ! "$RELOAD" ]; then
 	( exec 1<&-;
 	while true; do
 		while read -e -p "mkinit> " line; do
-			echo $line > $CMD
+			echo $line > $FIFO
 			history -s $line
 		done
 		[ "$TEST" ] && break
@@ -141,12 +163,9 @@ if [ ! "$RELOAD" ]; then
 	exec 0<&- 2<&-
 fi
 
-# Kill listeners on exit
-trap "pkill -HUP -P $$ initctld" EXIT
-
 # Main loop
 while true; do
-while read line; do
-	process $line
-done < $CMD
+	while read line; do
+		process $line
+	done < $FIFO
 done
