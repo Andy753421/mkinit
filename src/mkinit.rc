@@ -1,0 +1,174 @@
+#!/usr/lib/plan9/bin/rc
+
+# Copyright (C) 2009 Andy Spencer
+# See ../COPYING for terms
+
+# GLobals
+TEST=false
+RELOAD=false
+FIFO=/lib/mkinit/cmd
+INITCTL=/dev/initctl
+PATH=/lib/mkinit/bin:/bin:/sbin:/usr/bin:/usr/sbin:/usr/lib/plan9/bin
+
+# Functions 
+fn usage {
+	echo 'usage: '$0' [options] [command]'
+	echo 
+	echo 'Options:'
+	echo '  -h,--help    Print usage information'
+	echo '  -r,--relaod  Prevent spawning listeners when reloading'
+	echo '  -t,--test    Fake all commands'
+	echo
+	echo 'Command:'
+	echo '  boot         Execute boot-up procedures'
+	echo '  halt         Execute shutdown procedures'
+	echo '  reload       Re-execute init process'
+	echo '  mk <rule>    Execute mk rule'
+	echo '  start|stop|restart|zap|status <service>'
+	echo '               Start,stop,restart,zap or query status of service'
+	echo '  eval <cmd>   Execute command in mkinit process'
+	exit
+}
+
+# Fake readline
+fn prompt {
+	echo -n $1 >[1=2]
+	read
+}
+
+# Run mk on the init scripts
+fn runamk {
+	if ($TEST)
+		P=true
+	/usr/lib/plan9/bin/mk \
+		-f /etc/init.mk \
+		-i -k $*
+}
+
+# Process one command
+fn process {
+	cmd=$1
+	shift
+	arg=$*
+	switch($cmd){
+	case boot
+		echo
+		echo mkinit -- booting
+		runamk -a $arg
+
+	case restart
+		if(~ $arg ?*){
+			echo mkinit -- restarting $arg
+			runamk $arg-stop
+			runamk $arg-start
+		}
+
+	case start stop zap status
+		if(~ $arg ?*){
+			echo mkinit -- $cmd^ing $arg
+			runamk $arg-$cmd
+		}
+
+	case mk runlevel
+		if(~ $arg ?*){
+			if (~ $cmd mk)
+				echo mkinit -- running mk cmd [$arg]
+			if (~ $cmd runlevel)
+				echo mkinit -- entering runlevel $arg
+			runamk $arg
+		}
+
+	case reload
+		echo mkinit -- $cmd^ing
+		if($TEST)
+			opt=-t
+		exec $0 -r $opt
+
+	case eval
+		eval $arg
+
+	case ?*
+		echo mkinit -- unknown command [$cmd] [$arg]
+	}
+}
+
+# Handle arguments
+tmp=`{getopt -n $0 \
+	--options     hrt \
+	--longoptions help,reload,test \
+	-- $*}
+if(~ $status ?*)
+	usage
+eval '*=('$"tmp')'
+while(! ~ $1 --){
+	if ($TEST)
+		echo '$1=' $1
+	switch($1){
+	case -h --help   
+		usage
+
+	case -r --reload 
+		RELOAD=true
+
+	case -t --test   
+		TEST=true
+		FIFO=/tmp/pipe
+		INITCTL=/tmp/initctl
+		fn sigint { pkill -HUP -P $pid }
+
+	}
+	shift
+}
+shift; cmd=$1
+shift; arg=$*
+
+# Debugging output
+if($TEST){
+	echo 'Options'
+	echo '  test:' $TEST
+	echo '  reload:' $RELOAD
+	echo '  cmd:' $cmd
+	echo '  arg:' $arg
+}
+
+# Create fifos if they don't exist
+if(test ! -e $FIFO)
+	mkfifo $FIFO
+if(test ! -e $INITCTL)
+	mkfifo $INITCTL
+
+# Initial boot-up
+process $cmd $arg
+
+# Fork listeners
+if(!$RELOAD){
+	# Fork /dev/initctl listener
+	{ initctld $INITCTL |
+	while(line=`{read})
+		echo $line > $FIFO
+	} <[0=] >[1=] >[2=] &
+
+	# Fork console listener
+	# Readline uses stdin,stderr
+	if($TEST) {
+		tty=`{tty}
+		{ while(line=`{prompt 'mkinit> '}) {
+			echo line: $line
+			echo $line > $FIFO
+		} } <$"tty >[1=2] &
+	}
+	if not {
+		{ while(true){
+			while(line=`{prompt 'mkinit> '})
+				echo $line > $FIFO
+			echo Respawning on /dev/console..
+			sleep 1
+		} } </dev/console >/dev/console >[1=2]
+	}
+}
+
+# Main loop
+while(true)
+	{ while(line=`{read})
+		process $line
+	} < $FIFO >[2=1]

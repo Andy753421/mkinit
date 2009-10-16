@@ -1,9 +1,10 @@
-#!/bin/sh
+#!/usr/lib/plan9/bin/rc
 
 # Copyright (C) 2009 Andy Spencer
 # See ../COPYING for terms
 
-while (true); do
-	"$@"
+while(true){
+	$*
 	echo Process $! died, waiting 1 second to respawn
-done
+	sleep 1
+}

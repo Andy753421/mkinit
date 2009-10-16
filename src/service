@@ -1,41 +1,42 @@
-#!/bin/bash
+#!/usr/lib/plan9/bin/rc
 
 # Copyright (C) 2009 Andy Spencer
 # See ../COPYING for terms
 
-function usage {
-cat - <<EOF
-usage: $0 <action> [start-|stop-]<service>
-Action:
-  -u,--is-up    Test is service is running
-  -d,--is-down  Test is service is stopped
-  -U,--set-up   Set service to running
-  -D,--set-down Set service to stopped
-  -q,--query    Print the state of a service
-EOF
-exit
+fn usage {
+	echo 'usage: '$0' <action> [start-|stop-]<service>'
+	echo 'Action:'
+	echo '  -u,--is-up    Test is service is running'
+	echo '  -d,--is-down  Test is service is stopped'
+	echo '  -U,--set-up   Set service to running'
+	echo '  -D,--set-down Set service to stopped'
+	echo '  -q,--query    Print the state of a service'
+	exit
 }
 
 # Main
 STATE=/lib/mkinit/state
 
-action="$1"
-service="${2/-*}"
+action=$1
+service=`{echo $2 | sed s/-.*//}
 
-[ "$action" -a "$service" ] || usage
+if(~ $action '' || ~ $service '')
+	usage
 
-# echo "$0 $@"
-
-case "$1" in
-	-u|--is-up    ) test   -e "$STATE/$service" ;;
-	-d|--is-down  ) test ! -e "$STATE/$service" ;;
-	-U|--set-up   ) touch     "$STATE/$service" ;;
-	-D|--set-down ) rm        "$STATE/$service" ;;
-	-q|--query    ) 
-		echo -n "Service \`$service' is "
-		test -e "$STATE/$service" \
-			&& echo running \
-			|| echo stopped
-		;;
-	* ) usage ;;
-esac
+switch($1){
+case -u --is-up
+	test   -e $STATE/$service
+case -d --is-down
+	test ! -e $STATE/$service
+case -U --set-up
+	touch     $STATE/$service
+case -D --set-down
+	rm        $STATE/$service
+case -q --query
+	echo -n Service "$service" is
+	test -e $STATE/$service \
+		&& echo ' running' \
+		|| echo ' stopped'
+case *
+	usage
+}
