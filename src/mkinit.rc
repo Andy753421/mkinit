@@ -4,42 +4,80 @@
 # See ../COPYING for terms
 
 # GLobals
-TEST=false
-RELOAD=false
-FIFO=/lib/mkinit/cmd
-INITCTL=/dev/initctl
-PATH=/lib/mkinit/bin:/bin:/sbin:/usr/bin:/usr/sbin:/usr/lib/plan9/bin
+COMMAND=boot
+TESTING=false
+if(~ $pid 1)
+	DAEMON=true
+if not
+	DAEMON=false
+
+PATH=/lib/mkinit/bin:/bin:/sbin:/usr/bin:/usr/sbin
 
 # Functions 
 fn usage {
 	echo 'usage: '$0' [options] [command]'
 	echo 
 	echo 'Options:'
-	echo '  -h,--help    Print usage information'
-	echo '  -r,--relaod  Prevent spawning listeners when reloading'
-	echo '  -t,--test    Fake all commands'
-	echo
+	echo '  -h,--help      Print usage information'
+	echo '  -t,--test      Fake all commands'
+	echo '  -d,--daemon    For spawning stdin listener'
+	echo ''
 	echo 'Command:'
-	echo '  boot         Execute boot-up procedures'
-	echo '  halt         Execute shutdown procedures'
-	echo '  reload       Re-execute init process'
-	echo '  mk <rule>    Execute mk rule'
+	echo '  boot           Execute boot-up procedures'
+	echo '  halt           Execute shutdown procedures'
+	echo '  reload         Re-execute init process'
+	echo '  mk <rule>      Execute mk rule'
 	echo '  start|stop|restart|zap|status <service>'
-	echo '               Start,stop,restart,zap or query status of service'
-	echo '  eval <cmd>   Execute command in mkinit process'
+	echo '                 Start,stop,restart,zap or query status of service'
+	echo '  eval <cmd>     Execute command in mkinit process'
 	exit
+}
+
+# Handle arguments
+fn doopts {
+	tmp=`{getopt -n $0 -o htd -l help,test,daemon -- $*}
+	if(~ $status 0)
+		usage
+	eval '*=('$"tmp')'
+
+	# Parse options
+	while(! ~ $1 --){
+		switch($1){
+		case -h --help
+			usage
+		case -t --test
+			TESTING=true
+		case -d --daemon
+			DAEMON=true
+		}
+		shift
+	}
+	shift
+	if(! ~ $#* 0)
+		COMMAND=$*
+
+	# Debugging output
+	if($TESTING){
+		echo 'Options'             >[2=1]
+		echo '  TESTING:' $TESTING >[2=1]
+		echo '  DAEMON:'  $DAEMON  >[2=1]
+		echo '  COMMAND:' $COMMAND >[2=1]
+	}
 }
 
 # Fake readline
 fn prompt {
 	echo -n $1 >[1=2]
-	read
+	line
 }
 
 # Run mk on the init scripts
 fn runamk {
-	if ($TEST)
-		P=true
+	if($TESTING){
+		P=echo
+		MKINIT_STATE=/tmp/mkinit_state
+		mkdir -p $MKINIT_STATE
+	}
 	/usr/lib/plan9/bin/mk \
 		-f /etc/init.mk \
 		-i -k $*
@@ -49,126 +87,59 @@ fn runamk {
 fn process {
 	cmd=$1
 	shift
-	arg=$*
+	echo mkinit -- running "$"cmd" "$"*"
 	switch($cmd){
 	case boot
-		echo
-		echo mkinit -- booting
-		runamk -a $arg
+		runamk -a $*
 
 	case restart
 		if(~ $arg ?*){
-			echo mkinit -- restarting $arg
-			runamk $arg-stop
-			runamk $arg-start
+			if (! runamk $"*-stop)
+				runamk $"*-zap
+			runamk $"*-start
 		}
 
 	case start stop zap status
-		if(~ $arg ?*){
-			echo mkinit -- $cmd^ing $arg
-			runamk $arg-$cmd
-		}
-
-	case mk runlevel
-		if(~ $arg ?*){
-			if (~ $cmd mk)
-				echo mkinit -- running mk cmd [$arg]
-			if (~ $cmd runlevel)
-				echo mkinit -- entering runlevel $arg
-			runamk $arg
-		}
+		if(~ $arg ?*)
+			runamk $"*-$cmd
 
 	case reload
-		echo mkinit -- $cmd^ing
-		if($TEST)
+		if($TESTING)
 			opt=-t
 		exec $0 -r $opt
 
+	case poweroff reboot kexec halt
+		{ runamk $cmd $* & }
+
 	case eval
-		eval $arg
-
+		eval $*
+	
 	case ?*
-		echo mkinit -- unknown command [$cmd] [$arg]
+		runamk $cmd $*
+
 	}
 }
 
-# Handle arguments
-tmp=`{getopt -n $0 \
-	--options     hrt \
-	--longoptions help,reload,test \
-	-- $*}
-if(~ $status ?*)
-	usage
-eval '*=('$"tmp')'
-while(! ~ $1 --){
-	if ($TEST)
-		echo '$1=' $1
-	switch($1){
-	case -h --help   
-		usage
+# Process arguments
+doopts $*
 
-	case -r --reload 
-		RELOAD=true
+# Run whatever was requested
+process $COMMAND
 
-	case -t --test   
-		TEST=true
-		FIFO=/tmp/pipe
-		INITCTL=/tmp/initctl
-		fn sigint { pkill -HUP -P $pid }
-
-	}
-	shift
-}
-shift; cmd=$1
-shift; arg=$*
-
-# Debugging output
-if($TEST){
-	echo 'Options'
-	echo '  test:' $TEST
-	echo '  reload:' $RELOAD
-	echo '  cmd:' $cmd
-	echo '  arg:' $arg
-}
-
-# Create fifos if they don't exist
-if(test ! -e $FIFO)
-	mkfifo $FIFO
-if(test ! -e $INITCTL)
-	mkfifo $INITCTL
-
-# Initial boot-up
-process $cmd $arg
-
-# Fork listeners
-if(!$RELOAD){
-	# Fork /dev/initctl listener
-	{ initctld $INITCTL |
-	while(line=`{read})
-		echo $line > $FIFO
-	} <[0=] >[1=] >[2=] &
-
-	# Fork console listener
-	# Readline uses stdin,stderr
-	if($TEST) {
-		tty=`{tty}
-		{ while(line=`{prompt 'mkinit> '}) {
-			echo line: $line
-			echo $line > $FIFO
-		} } <$"tty >[1=2] &
-	}
-	if not {
-		{ while(true){
-			while(line=`{prompt 'mkinit> '})
-				echo $line > $FIFO
-			echo Respawning on /dev/console..
-			sleep 1
-		} } </dev/console >/dev/console >[1=2]
-	}
-}
-
-# Main loop
-while(true)
-	{ while(line=`{read})
+# Fork console listener
+fn listen1 {
+	while(line=`{prompt 'mkinit> '})
 		process $line
-	} < $FIFO >[2=1]
+}
+if($DAEMON){
+	listen1
+	if ($TESTING)
+		exit
+	while($DAEMON) {
+		echo Respawning on /dev/console..
+		sleep 1
+		listen1 <[0]/dev/console \
+		        >[1]/dev/console \
+		        >[2=1]
+	}
+}

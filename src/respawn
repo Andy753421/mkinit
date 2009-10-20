@@ -3,8 +3,6 @@
 # Copyright (C) 2009 Andy Spencer
 # See ../COPYING for terms
 
-while(true){
-	$*
-	echo Process $! died, waiting 1 second to respawn
+{ while($*){
 	sleep 1
-}
+} } <[0=] >[1=] >[2=] &

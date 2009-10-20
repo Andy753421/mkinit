@@ -8,16 +8,16 @@ a few times as root before actually trying using init=/sbin/mkinit.
 Init scripts
 ------------
 Init scripts take the form of mk rules contained in /etc/init.mk. Services are
-started by calling  the `start-<service>' rule and stopped by calling
-`stop-service'. Services should use `:Pservice -[ud]:' to determine whether the
-script needs to be invoked.
+started by calling  the `<service>-start' rule and stopped by calling
+`<service>-stop'. Services should use `:Pservice -[ud]:' to determine if the
+script needs to be run and call `service -[UD]' afterwards.
 
-For simple services consisting of a single start and stop command which no
-dependencies other than boot, the default start-stop rules can be used by
-setting `<service>_start_cmd' and `<service>_stop_cmd'.
+For simple services consisting of a single start and stop command with no
+dependencies other than `boot', the default start-stop rules can be used by
+setting `<service>-start_cmd' and `<service>-stop_cmd'.
 
-Dependencies are handled by adding `start-<dependency>' to the rules list of
-dependencies. When stopping a service, `stop-<service>' should be added to the
+Dependencies are handled by adding `<dependency>-start' to the rules list of
+dependencies. When stopping a service, `<service>-stop' should be added to the
 list of dependencies for the dependency.
 
 
@@ -28,10 +28,14 @@ README  - This file
 mkfile  - For [un]installing mkinit
 init.mk - Example database of init scripts
 
-bin/mkinit  - The actual init program it runs main loop and calls mk on
-              init.mk whenever services need to be started and stopped.
-bin/respawn - Used to respawn gettys and such
-bin/service - Set or query the state of a service
+src:
+mkinit     - The actual init program it runs main loop and calls mk on init.mk
+             whenever services need to be started and stopped.
+mkinit.rc  - Rc variant of mkinit, unforuntly I can't get the IO redirects
+             working, it also leave zombies laying around..
+initctld.c - Reads /dev/initctl (Sysvinit compatability for halt,reboot,etc)
+service    - Set or query the state of a service
+respawn    - Used to respawn gettys and such
 
 
 # tw=80

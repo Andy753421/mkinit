@@ -10,31 +10,38 @@ fn usage {
 	echo '  -d,--is-down  Test is service is stopped'
 	echo '  -U,--set-up   Set service to running'
 	echo '  -D,--set-down Set service to stopped'
+	echo '  -F,--flush    Resest all services to stopped'
 	echo '  -q,--query    Print the state of a service'
 	exit
 }
 
 # Main
-STATE=/lib/mkinit/state
+state=/lib/mkinit/state
+if (~ $MKINIT_STATE ?*)
+	state=$MKINIT_STATE
 
 action=$1
 service=`{echo $2 | sed s/-.*//}
 
-if(~ $action '' || ~ $service '')
+if(~ $action '')
+	usage
+if(! ~ $action -F && ~ $service '')
 	usage
 
 switch($1){
 case -u --is-up
-	test   -e $STATE/$service
+	test   -e $state/$service
 case -d --is-down
-	test ! -e $STATE/$service
+	test ! -e $state/$service
 case -U --set-up
-	touch     $STATE/$service
+	touch     $state/$service
 case -D --set-down
-	rm        $STATE/$service
+	rm -f     $state/$service
+case -F --flush
+	rm -f     $state/*
 case -q --query
 	echo -n Service "$service" is
-	test -e $STATE/$service \
+	test -e $state/$service \
 		&& echo ' running' \
 		|| echo ' stopped'
 case *
