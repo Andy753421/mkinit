@@ -24,6 +24,6 @@ uninstall:VE:
 	rmdir /lib/mkinit/state/
 	rmdir /lib/mkinit/
 
-<mkcommon
+<../mkcommon
 
 # vim: ft=mk

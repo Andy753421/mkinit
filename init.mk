@@ -15,7 +15,7 @@ NPROC=10
 #	service -D $target
 
 # Runlevels
-user   = alsa keymap polipo spam dbus
+user   = alsa keymap polipo dbus
 system = at cron hddtemp hostname hwclock sshd swap syslog
 bare   = cpufreq fsclean getty qingy initctl localhost modules mounts uevents utmp
 
