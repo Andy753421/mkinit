@@ -14,17 +14,21 @@ NPROC=10
 #	echo stopping test
 #	service -D $target
 
-# Runlevels
-user   = alsa keymap polipo dbus
-system = at cron hddtemp hostname hwclock sshd swap syslog
-bare   = cpufreq fsclean getty qingy initctl localhost modules mounts uevents utmp
+# Runlevels:
+#   single─bare─system─┬─desktop─>
+#                      └─server──>
+server  = apache2
+desktop = alsa dbus keymap polipo
+system  = at cron hddtemp hwclock sshd swap syslog
+bare    = cpufreq fsclean getty qingy hostname initctl localhost modules mounts uevents utmp
 
-default:V: user
+default:V: desktop
 
-user:V:   `{echo $user^-start $system^-start $bare^-start}
-system:V: `{echo $user^-stop  $system^-start $bare^-start}
-bare:V:   `{echo $user^-stop  $system^-stop  $bare^-start}
-single:V: `{echo $user^-stop  $system^-stop  $bare^-stop }
+server:V:  `{echo                $desktop^-start $system^-start $bare^-start}
+desktop:V: `{echo $server^-start                 $system^-start $bare^-start}
+system:V:  `{echo $server^-stop  $desktop^-stop  $system^-start $bare^-start}
+bare:V:    `{echo $server^-stop  $desktop^-stop  $system^-stop  $bare^-start}
+single:V:  `{echo $server^-stop  $desktop^-stop  $system^-stop  $bare^-stop }
 
 poweroff:V: halt 
 	$P poweroff -ndf
@@ -129,9 +133,6 @@ cpufreq-start:VPservice -u: uevents-start
 	$P cpufreq-set -g ondemand
 	service -U $target
 
-# Keymap (us-cc = us with ctrl-capslock switched)
-keymap-start_cmd=loadkeys -u us-cc
-
 # Localhost
 localhost-start_cmd=ifconfig lo 127.0.0.1
 localhost-stop_cmd=ifconfig lo down
@@ -143,7 +144,7 @@ hostname-start_cmd=hostname b
 sysctl-start_cmd=sysctl -p
 
 
-# Console
+# System
 # -------
 at-start_cmd=atd
 at-stop_cmd=pkill atd
@@ -151,8 +152,16 @@ at-stop_cmd=pkill atd
 cron-start_cmd=cron
 cron-stop_cmd=pkill cron
 
+hddtemp-start:VPservice -u: localhost-start
+	$P hddtemp -d -l 127.0.0.1 /dev/sda
+	service -U $target
+hddtemp-stop_cmd=pkill hddtemp
+
 hwclock-start_cmd=hwclock --hctosys --utc
 hwclock-stop_cmd=hwclock --systohc --utc
+
+sshd-start_cmd=/usr/sbin/sshd
+sshd-stop_cmd=pkill sshd
 
 swap-start_cmd=swapon -a
 swap-stop_cmd=swapoff -a
@@ -162,19 +171,11 @@ syslog-start:VPservice -u: mounts-start
 	service -U $target
 syslog-stop_cmd=pkill syslog
 
-hddtemp-start:VPservice -u: localhost-start
-	$P hddtemp -d -l 127.0.0.1 /dev/sda
-	service -U $target
-hddtemp-stop_cmd=pkill hddtemp
-
 
 # Desktop
 # -------
 alsa-start_cmd=alsactl restore
 alsa-stop_cmd=alsactl store
-
-sshd-start_cmd=/usr/sbin/sshd
-sshd-stop_cmd=pkill sshd
 
 dbus-start:VPservice -u: fsclean-start localhost-start
 	$P mkdir -p /var/run/dbus
@@ -182,16 +183,23 @@ dbus-start:VPservice -u: fsclean-start localhost-start
 	service -U $target
 dbus-stop_cmd=pkill dbus-daemon
 
-spam-start:VPservice -u: localhost-start
-	$P spamd -d
-	service -U $target
-spam-stop_cmd=pkill spamd
+keymap-start_cmd=loadkeys -u us-cc
 
 polipo-start:VPservice -u: localhost-start
 	$P polipo
 	service -U $target
 polipo-stop_cmd=pkill polipo
 
+
+# Server
+# ------
+apache2-start_cmd=apache2 -DSSL
+apache2-stop_cmd=pkill apache2
+
+spam-start:VPservice -u: localhost-start
+	$P spamd -d
+	service -U $target
+spam-stop_cmd=pkill spamd
 
 # Library 
 # -------
