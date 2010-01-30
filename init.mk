@@ -18,14 +18,14 @@ NPROC=10
 #   single─bare─system─┬─desktop─>
 #                      └─server──>
 server  = apache2
-desktop = alsa dbus keymap polipo
+desktop = alsa cups dbus keymap polipo
 system  = at cron hddtemp hwclock sshd swap syslog
 bare    = cpufreq fsclean getty qingy hostname initctl localhost modules mounts uevents utmp
 
 default:V: desktop
 
-server:V:  `{echo                $desktop^-start $system^-start $bare^-start}
-desktop:V: `{echo $server^-start                 $system^-start $bare^-start}
+server:V:  `{echo $server^-start                 $system^-start $bare^-start}
+desktop:V: `{echo                $desktop^-start $system^-start $bare^-start}
 system:V:  `{echo $server^-stop  $desktop^-stop  $system^-start $bare^-start}
 bare:V:    `{echo $server^-stop  $desktop^-stop  $system^-stop  $bare^-start}
 single:V:  `{echo $server^-stop  $desktop^-stop  $system^-stop  $bare^-stop }
@@ -177,6 +177,9 @@ syslog-stop_cmd=pkill syslog
 alsa-start_cmd=alsactl restore
 alsa-stop_cmd=alsactl store
 
+cups-start_cmd=cupsd
+cups-stop_cmd=pkill cupsd
+
 dbus-start:VPservice -u: fsclean-start localhost-start
 	$P mkdir -p /var/run/dbus
 	$P /usr/bin/dbus-daemon --system
@@ -193,7 +196,7 @@ polipo-stop_cmd=pkill polipo
 
 # Server
 # ------
-apache2-start_cmd=apache2 -DSSL
+apache2-start_cmd=apache2 -DSSL -DPHP5
 apache2-stop_cmd=pkill apache2
 
 spam-start:VPservice -u: localhost-start
