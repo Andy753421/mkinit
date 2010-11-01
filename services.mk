@@ -1,9 +1,4 @@
-# Copyright (C) 2009 Andy Spencer
-# See COPYING for terms
-
-# Config
 MKSHELL=/usr/lib/plan9/bin/rc
-NPROC=10
 
 # Example
 #test-start:VQPservice -u: foo-start
@@ -14,22 +9,9 @@ NPROC=10
 #	echo stopping test
 #	service -D $target
 
-# Runlevels:
-#   single─bare─system─┬─desktop─>
-#                      └─server──>
-server  = apache2
-desktop = alsa cups dbus keymap polipo
-system  = at cron hddtemp hwclock sshd swap syslog
-bare    = cpufreq fsclean getty qingy hostname initctl localhost modules mounts uevents utmp
-
-default:V: desktop
-
-server:V:  `{echo $server^-start                 $system^-start $bare^-start}
-desktop:V: `{echo                $desktop^-start $system^-start $bare^-start}
-system:V:  `{echo $server^-stop  $desktop^-stop  $system^-start $bare^-start}
-bare:V:    `{echo $server^-stop  $desktop^-stop  $system^-stop  $bare^-start}
-single:V:  `{echo $server^-stop  $desktop^-stop  $system^-stop  $bare^-stop }
-
+# Core commands
+# -------------
+# Reboot commands
 poweroff:V: halt 
 	$P poweroff -ndf
 reboot:V: halt
@@ -100,6 +82,7 @@ fsclean-start:VPservice -u: boot
 	$P mv $dirs /.old
 	$P mkdir -p $dirs
 	$P chmod 1777 /tmp
+	$P install -m 1777 -d /var/run/screen # Fuck you Screen
 	$P exec rm -rf /.old &
 	service -U $target
 
@@ -138,7 +121,7 @@ localhost-start_cmd=ifconfig lo 127.0.0.1
 localhost-stop_cmd=ifconfig lo down
 
 # Set hostname
-hostname-start_cmd=hostname b
+hostname-start_cmd=hostname
 
 # Kernel parameters
 sysctl-start_cmd=sysctl -p
@@ -196,30 +179,56 @@ polipo-stop_cmd=pkill polipo
 
 # Server
 # ------
-apache2-start_cmd=apache2 -DSSL -DPHP5
+apache2-start_cmd=apache2
 apache2-stop_cmd=pkill apache2
 
-spam-start:VPservice -u: localhost-start
+courier-start:VPservice -u:
+	$P install -o mail -g mail -d /var/run/courier
+	$P authdaemond       start
+	$P courier           start
+	$P courierfilter     start
+	$P courier-imapd-ssl start
+	service -U $target
+courier-stop_cmd=pkill '(courier|authdaemon)'
+
+dhcp-start_cmd=dhcpcd eth0
+dhcp-stop_cmd=dhcpcd eth0 -k
+
+mysql-start:VPservice -u: fsclean-start
+	$P install -o mysql -g mysql -d /var/run/mysqld
+	$P mysqld &
+	service -U $target
+mysql-stop_cmd=pkill mysqld
+
+spam-start:VPservice -u:
 	$P spamd -d
 	service -U $target
 spam-stop_cmd=pkill spamd
 
+tor-start:VPservice -u:
+	$P exec tor &
+	service -U $target
+tor-stop_cmd=pkill tor
+
+privoxy-start_cmd=privoxy --user privoxy.privoxy /etc/privoxy/config
+privoxy-stop_cmd=pkill privoxy
+
 # Library 
 # -------
-%-start:VPservice -u: boot
+%-start:QVPservice -u: boot
 	if (~ $#($stem^-start_cmd) 0)
-		exit 0
-	$P $($stem^-start_cmd)
+		echo No such service $stem && exit 0
+	$P $($stem^-start_cmd) $($stem^-opts)
 	service -U $target
 
-%-stop:VPservice -d: /
+%-stop:QVPservice -d: /
 	if (~ $#($stem^-stop_cmd) 0)
-		exit 0
+		echo No such service $stem && exit 0
 	$P $($stem^-stop_cmd)
 	service -D $target
 
-%-zap:VPservice -d: /
+%-zap:QVPservice -d: /
 	service -D $target
 
-%-status:V:
+%-status:QV:
 	service -q $target
