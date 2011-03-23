@@ -1,4 +1,4 @@
-MKSHELL=/usr/lib/plan9/bin/rc
+MKSHELL=/opt/plan9/bin/rc
 
 # Example
 #test-start:VQPservice -u: foo-start
@@ -182,7 +182,11 @@ polipo-stop_cmd=pkill polipo
 apache2-start_cmd=apache2
 apache2-stop_cmd=pkill apache2
 
-courier-start:VPservice -u:
+#bitlbee-start_cmd=sudo -u bitlbee bitlbeed /usr/sbin/bitlbee
+bitlbee-start_cmd=bitlbee -D -u bitlbee
+bitlbee-stop_cmd=pkill bitlbeed
+
+courier-start:VPservice -u: fsclean-start
 	$P install -o mail -g mail -d /var/run/courier
 	$P authdaemond       start
 	$P courier           start
@@ -200,10 +204,8 @@ mysql-start:VPservice -u: fsclean-start
 	service -U $target
 mysql-stop_cmd=pkill mysqld
 
-spam-start:VPservice -u:
-	$P spamd -d
-	service -U $target
-spam-stop_cmd=pkill spamd
+spamd-start_cmd=spamd -u spamd -d
+spamd-stop_cmd=pkill spamd
 
 tor-start:VPservice -u:
 	$P exec tor &

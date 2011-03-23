@@ -1,4 +1,4 @@
-#!/usr/lib/plan9/bin/rc
+#!/opt/plan9/bin/rc
 
 # Copyright (C) 2009 Andy Spencer
 # See ../COPYING for terms
@@ -78,7 +78,7 @@ fn runamk {
 		MKINIT_STATE=/tmp/mkinit_state
 		mkdir -p $MKINIT_STATE
 	}
-	/usr/lib/plan9/bin/mk \
+	/opt/plan9/bin/mk \
 		-f /etc/init.mk \
 		-i -k $*
 }

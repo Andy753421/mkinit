@@ -2,7 +2,7 @@
 # See COPYING for terms
 
 # Config
-MKSHELL=/usr/lib/plan9/bin/rc
+MKSHELL=/opt/plan9/bin/rc
 NPROC=10
 
 hostname-opts = c

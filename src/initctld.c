@@ -132,12 +132,12 @@ void process_request(struct init_request *request)
 		break;
 	case INIT_CMD_SETENV:
 		printf("eval export %.*s\n",
-				sizeof(request->i.data),
+				(int)sizeof(request->i.data),
 				request->i.data);
 		break;
 	case INIT_CMD_CHANGECONS:
 		printf("changeconsole %.*s\n",
-				sizeof(request->i.bsd.reserved),
+				(int)sizeof(request->i.bsd.reserved),
 				request->i.bsd.reserved);
 		break;
 	default:
