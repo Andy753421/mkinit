@@ -57,20 +57,21 @@ initctl-start:VPservice -u: boot
 	service -U $target
 initctl-stop_cmd=fuser -k /dev/initctl
 
-# Proc, mtab, udev, fstab
+# Proc, mtab, fstab
 mounts-start:VPservice -u: boot
 	$P cp /proc/mounts /etc/mtab
-	$P udevd --daemon
 	$P mount -a
 	service -U $target
 
 # Load kernel modules
 modules-start:VEPservice -u: boot
 	$P modprobe uvesafb
+	$P modprobe evdev
 	service -U $target
 
-# Trigger udev uevents
-uevents-start:VEPservice -u:  mounts-start
+# Start udev and trigger events
+udev-start:VEPservice -u:  mounts-start
+	$P udevd --daemon
 	$P udevadm trigger
 	$P udevadm settle '--timeout=10'
 	service -U $target
@@ -79,25 +80,26 @@ uevents-start:VEPservice -u:  mounts-start
 fsclean-start:VPservice -u: boot
 	dirs=(/var/run /tmp)
 	$P mkdir -p /.old
-	$P mv $dirs /.old
+	$P mv $dirs /.old || true
 	$P mkdir -p $dirs
 	$P chmod 1777 /tmp
-	$P install -m 1777 -d /var/run/screen # Fuck you Screen
+	$P install -m 755 -d /var/run/screen # Fuck you Screen
 	$P exec rm -rf /.old &
 	service -U $target
 
-# Spawn gettys for tty[456]
+# Spawn gettys for tty[3456]
 getty-start:VEPservice -u: hostname-start utmp-start
+	$P respawn /sbin/agetty 38400 tty3 linux
 	$P respawn /sbin/agetty 38400 tty4 linux
 	$P respawn /sbin/agetty 38400 tty5 linux
 	$P respawn /sbin/agetty 38400 tty6 linux
 	service -U $target
 getty-stop_cmd=fuser -k /dev/tty4 /dev/tty5 /dev/tty6
 
-# Spawn qingys for tty[23]
-qingy-start:VEPservice -u: hostname-start utmp-start modules-start uevents-start
+# Spawn qingys for tty[2]
+qingy-start:VEPservice -u: hostname-start utmp-start modules-start
 	$P respawn /sbin/qingy tty2
-	$P respawn /sbin/qingy tty3
+	$P chvt 2
 	service -U $target
 qingy-stop_cmd=fuser -k /dev/tty2 /dev/tty3
 
@@ -112,7 +114,7 @@ utmp-start:VPservice -u: fsclean-start
 utmp-stop_cmd=halt -w
 
 # CPU freq
-cpufreq-start:VPservice -u: uevents-start
+cpufreq-start:VPservice -u: boot
 	$P cpufreq-set -g ondemand
 	service -U $target
 
@@ -207,7 +209,7 @@ mysql-stop_cmd=pkill mysqld
 spamd-start_cmd=spamd -u spamd -d
 spamd-stop_cmd=pkill spamd
 
-tor-start:VPservice -u:
+tor-start:VPservice -u: boot
 	$P exec tor &
 	service -U $target
 tor-stop_cmd=pkill tor
