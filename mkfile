@@ -14,7 +14,7 @@ install:V: all
 		$DESTDIR/lib/mkinit/state
 	install -t $DESTDIR/lib/mkinit/bin \
  		./src/{mkinit,service,respawn,initctld}
-	install -t $DESTDIR/etc  ./init.mk       
+	#install -t $DESTDIR/etc  ./init.mk       
 	ln -sf $DESTDIR/lib/mkinit/bin/mkinit $DESTDIR/sbin
 
 uninstall:VE:

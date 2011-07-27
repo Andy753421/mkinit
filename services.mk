@@ -63,10 +63,17 @@ mounts-start:VPservice -u: boot
 	$P mount -a
 	service -U $target
 
-# Load kernel modules
-modules-start:VEPservice -u: boot
-	$P modprobe uvesafb
-	$P modprobe evdev
+# Mount devtmpfs and shm/pts subfolders
+devtmpfs-start:VEPservice -u: boot
+	$P mount /dev
+	$P mkdir /dev/shm
+	$P mkdir /dev/pts
+	service -U $target
+
+# Start mdev as initial/daemon
+mdev-start:VEPservice -u: mounts-start udev-stop
+	$P echo /sbin/mdev > /proc/sys/kernel/hotplug
+	$P mdev -s
 	service -U $target
 
 # Start udev and trigger events
@@ -74,6 +81,13 @@ udev-start:VEPservice -u:  mounts-start
 	$P udevd --daemon
 	$P udevadm trigger
 	$P udevadm settle '--timeout=10'
+	service -U $target
+udev-stop_cmd=pkill udevd
+
+# Load kernel modules
+modules-start:VEPservice -u: boot
+	$P modprobe uvesafb
+	$P modprobe evdev
 	service -U $target
 
 # Clean out /tmp and /var/run directories
@@ -94,14 +108,14 @@ getty-start:VEPservice -u: hostname-start utmp-start
 	$P respawn /sbin/agetty 38400 tty5 linux
 	$P respawn /sbin/agetty 38400 tty6 linux
 	service -U $target
-getty-stop_cmd=fuser -k /dev/tty4 /dev/tty5 /dev/tty6
+getty-stop_cmd=fuser -k /dev/tty3 /dev/tty4 /dev/tty5 /dev/tty6
 
 # Spawn qingys for tty[2]
 qingy-start:VEPservice -u: hostname-start utmp-start modules-start
 	$P respawn /sbin/qingy tty2
 	$P chvt 2
 	service -U $target
-qingy-stop_cmd=fuser -k /dev/tty2 /dev/tty3
+qingy-stop_cmd=fuser -k /dev/tty2
 
 # Login records
 utmp-start:VPservice -u: fsclean-start
@@ -114,7 +128,7 @@ utmp-start:VPservice -u: fsclean-start
 utmp-stop_cmd=halt -w
 
 # CPU freq
-cpufreq-start:VPservice -u: boot
+cpufreq-start:VPservice -u: mounts-start
 	$P cpufreq-set -g ondemand
 	service -U $target
 
@@ -171,6 +185,9 @@ dbus-start:VPservice -u: fsclean-start localhost-start
 	service -U $target
 dbus-stop_cmd=pkill dbus-daemon
 
+gpm-start_cmd=gpm -m /dev/input/mice -t ps2
+gpm-stop_cmd=pkill gpm
+
 keymap-start_cmd=loadkeys -u us-cc
 
 polipo-start:VPservice -u: localhost-start
@@ -206,6 +223,9 @@ mysql-start:VPservice -u: fsclean-start
 	service -U $target
 mysql-stop_cmd=pkill mysqld
 
+privoxy-start_cmd=privoxy --user privoxy.privoxy /etc/privoxy/config
+privoxy-stop_cmd=pkill privoxy
+
 spamd-start_cmd=spamd -u spamd -d
 spamd-stop_cmd=pkill spamd
 
@@ -213,9 +233,6 @@ tor-start:VPservice -u: boot
 	$P exec tor &
 	service -U $target
 tor-stop_cmd=pkill tor
-
-privoxy-start_cmd=privoxy --user privoxy.privoxy /etc/privoxy/config
-privoxy-stop_cmd=pkill privoxy
 
 # Library 
 # -------
