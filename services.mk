@@ -97,7 +97,7 @@ fsclean-start:VPservice -u: boot
 	$P mv $dirs /.old || true
 	$P mkdir -p $dirs
 	$P chmod 1777 /tmp
-	$P install -m 755 -d /var/run/screen # Fuck you Screen
+	$P install -m 777 -d /var/run/screen # Fuck you Screen
 	$P exec rm -rf /.old &
 	service -U $target
 
@@ -217,11 +217,32 @@ courier-stop_cmd=pkill '(courier|authdaemon)'
 dhcp-start_cmd=dhcpcd eth0
 dhcp-stop_cmd=dhcpcd eth0 -k
 
+dovecot-start_cmd=dovecot
+dovecot-stop_cmd=pkill dovecot
+
+exim-start_cmd=exim -q5m
+exim-stop_cmd=pkill exim
+
+gitd-start:VPservice -u: boot
+	$P exec /usr/libexec/git-core/git-daemon \
+		'--syslog' \
+		'--export-all' \
+		'--user-path=git' \
+		'--base-path=/home/server/git' \
+		'--listen=0.0.0.0' \
+		'--user=nobody' \
+		'--group=nobody' &
+	service -U $target
+gitd-stop_cmd=pkill git-daemon
+
 mysql-start:VPservice -u: fsclean-start
 	$P install -o mysql -g mysql -d /var/run/mysqld
-	$P mysqld &
+	$P exec mysqld &
 	service -U $target
 mysql-stop_cmd=pkill mysqld
+
+ntpd-start_cmd=ntpd
+ntpd-stop_cmd=pkill ntpd
 
 privoxy-start_cmd=privoxy --user privoxy.privoxy /etc/privoxy/config
 privoxy-stop_cmd=pkill privoxy
