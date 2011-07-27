@@ -1,4 +1,4 @@
-# Copyright (C) 2009-2010 Andy Spencer
+# Copyright (C) 2009-2011 Andy Spencer
 # See COPYING for terms
 
 # Config
@@ -11,9 +11,9 @@ apache2-opts  = -DSSL -DPHP5
 # Runlevels:
 #   single─bare─system─┬─desktop─>
 #                      └─server──>
-server  = apache2 courier dhcp mysql spamd tor
+server  = apache2 bitlbee dhcp dovecot exim gitd mysql ntpd spamd
 desktop = alsa cups dbus getty qingy keymap polipo
-system  = at cron hddtemp hwclock sshd swap syslog
+system  = at cron hddtemp hwclock mdev sshd swap syslog
 bare    = cpufreq fsclean hostname initctl localhost modules mounts uevents utmp
 
 default:V: desktop
