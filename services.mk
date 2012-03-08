@@ -102,18 +102,18 @@ fsclean-start:VPservice -u: boot
 	$P exec rm -rf /.old &
 	service -U $target
 
-# Spawn gettys for tty[3456]
+# Spawn gettys for tty[456]
 getty-start:VEPservice -u: hostname-start utmp-start
-	$P respawn /sbin/agetty 38400 tty3 linux
 	$P respawn /sbin/agetty 38400 tty4 linux
 	$P respawn /sbin/agetty 38400 tty5 linux
 	$P respawn /sbin/agetty 38400 tty6 linux
 	service -U $target
 getty-stop_cmd=fuser -k /dev/tty3 /dev/tty4 /dev/tty5 /dev/tty6
 
-# Spawn qingys for tty[2]
+# Spawn qingys for tty[23]
 qingy-start:VEPservice -u: hostname-start utmp-start modules-start
 	$P respawn /sbin/qingy tty2
+	$P respawn /sbin/qingy tty3 -t
 	$P chvt 2
 	service -U $target
 qingy-stop_cmd=fuser -k /dev/tty2
@@ -189,6 +189,9 @@ dbus-stop_cmd=pkill dbus-daemon
 gpm-start_cmd=gpm -m /dev/input/mice -t ps2
 gpm-stop_cmd=pkill gpm
 
+gpsd-start_cmd=gpsd tcp://localhost:2222
+gpsd-stop_cmd=pkill gpsd
+
 keymap-start_cmd=loadkeys -u us-cc
 
 polipo-start:VPservice -u: localhost-start
@@ -258,6 +261,9 @@ privoxy-stop_cmd=pkill privoxy
 
 spamd-start_cmd=spamd -u spamd -d
 spamd-stop_cmd=pkill spamd
+
+tftpd-start_cmd=in.tftpd -s -l /img/boot
+tftpd-stop_cmd=
 
 tor-start:VPservice -u: boot
 	$P exec tor &
