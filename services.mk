@@ -60,6 +60,7 @@ initctl-stop_cmd=fuser -k /dev/initctl
 # Proc, mtab, fstab
 mounts-start:VPservice -u: boot
 	$P cp /proc/mounts /etc/mtab
+	$P mdadm -A /dev/md4 /dev/sd[abc]4
 	$P mount -a
 	service -U $target
 
@@ -203,7 +204,7 @@ apache2-stop_cmd=pkill apache2
 
 #bitlbee-start_cmd=sudo -u bitlbee bitlbeed /usr/sbin/bitlbee
 bitlbee-start_cmd=bitlbee -D -u bitlbee
-bitlbee-stop_cmd=pkill bitlbeed
+bitlbee-stop_cmd=pkill bitlbee
 
 courier-start:VPservice -u: fsclean-start
 	$P install -o mail -g mail -d /var/run/courier
@@ -217,10 +218,15 @@ courier-stop_cmd=pkill '(courier|authdaemon)'
 dhcp-start_cmd=dhcpcd eth0
 dhcp-stop_cmd=dhcpcd eth0 -k
 
+diod-start:VPservice -u: munged-start
+	$P diod --export-all
+	service -U $target
+diod-stop_cmd=pkill diod
+
 dovecot-start_cmd=dovecot
 dovecot-stop_cmd=pkill dovecot
 
-exim-start_cmd=exim -q5m
+exim-start_cmd=exim -bd -q5m
 exim-stop_cmd=pkill exim
 
 gitd-start:VPservice -u: boot
@@ -234,6 +240,9 @@ gitd-start:VPservice -u: boot
 		'--group=nobody' &
 	service -U $target
 gitd-stop_cmd=pkill git-daemon
+
+munged-start_cmd=sudo -u munge -g munge munged
+munged-stop_cmd=pkill munged
 
 mysql-start:VPservice -u: fsclean-start
 	$P install -o mysql -g mysql -d /var/run/mysqld
