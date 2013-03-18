@@ -12,8 +12,8 @@ apache2-opts  = -DSSL -DPHP5
 #   single─bare─system─┬─desktop─>
 #                      └─server──>
 server  = apache2 bitlbee dhcp dovecot exim gitd mysql ntpd spamd
-desktop = alsa dbus getty gpm keymap qingy
-system  = at cron hddtemp hwclock sshd swap syslog
+desktop = alsa dhcp getty gpm keymap qingy
+system  = at cron hddtemp hwclock sshd swap sysctl syslog
 bare    = cpufreq fsclean hostname initctl localhost mdev modules mounts utmp
 
 default:V: desktop
@@ -25,4 +25,4 @@ bare:V:    `{echo $server^-stop  $desktop^-stop  $system^-stop  $bare^-start}
 single:V:  `{echo $server^-stop  $desktop^-stop  $system^-stop  $bare^-stop }
 
 # Include services
-</scratch/lug/mkinit/services.mk
+</etc/services.mk

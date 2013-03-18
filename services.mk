@@ -31,13 +31,13 @@ boot:VEPservice -u: /
 # Kill all process, then remount and sync
 halt:QVE: utmp-stop hwclock-stop alsa-stop
 	echo TERMinating all processes
-	$P pkill -15 -vg0 >/dev/null >[2=1]
+	$P pkill -15 --inverse -g0 >/dev/null >[2=1]
 	for (i in 1 2 3 4 5)
-		$P pgrep -vg0 >/dev/null >[2=1] && $P sleep 1
+		{ $P pgrep -vg0 && $P sleep 1 }
 	echo KILLing all processes
-	$P pkill  -9 -vg0 >/dev/null >[2=1]
+	$P pkill  -9 --inverse -g0 >/dev/null >[2=1]
 	for (i in 1 2 3)
-		$P pgrep -vg0 >/dev/null >[2=1] && $P sleep 1
+		{ $P pgrep -vg0 && $P sleep 1 }
 	service -F
 	echo Remounting read-only
 	$P mount -o remount,ro /
@@ -72,7 +72,7 @@ devtmpfs-start:VEPservice -u: boot
 	service -U $target
 
 # Start mdev as initial/daemon
-mdev-start:VEPservice -u: mounts-start udev-stop
+mdev-start:VEPservice -u: mounts-start
 	$P echo /sbin/mdev > /proc/sys/kernel/hotplug
 	$P mdev -s
 	service -U $target
@@ -102,21 +102,22 @@ fsclean-start:VPservice -u: boot
 	$P exec rm -rf /.old &
 	service -U $target
 
-# Spawn gettys for tty[456]
+# Spawn gettys for tty[23456]
 getty-start:VEPservice -u: hostname-start utmp-start
-	$P respawn /sbin/agetty 38400 tty4 linux
-	$P respawn /sbin/agetty 38400 tty5 linux
-	$P respawn /sbin/agetty 38400 tty6 linux
+	$P respawn setsid agetty 38400 tty2 linux
+	$P respawn setsid agetty 38400 tty3 linux
+	$P respawn setsid agetty 38400 tty4 linux
+	$P respawn setsid agetty 38400 tty5 linux
+	$P respawn setsid agetty 38400 tty6 linux
 	service -U $target
-getty-stop_cmd=fuser -k /dev/tty3 /dev/tty4 /dev/tty5 /dev/tty6
+getty-stop_cmd=fuser -k /dev/tty2 /dev/tty3 /dev/tty4 /dev/tty5 /dev/tty6
 
-# Spawn qingys for tty[23]
+# Spawn qingys for tty[7]
 qingy-start:VEPservice -u: hostname-start utmp-start modules-start
-	$P respawn /sbin/qingy tty2
-	$P respawn /sbin/qingy tty3 -t
-	$P chvt 2
+	$P respawn setsid /sbin/qingy-DirectFB tty7 &
+	$P chvt 7
 	service -U $target
-qingy-stop_cmd=fuser -k /dev/tty2
+qingy-stop_cmd=fuser -k /dev/tty7
 
 # Login records
 utmp-start:VPservice -u: fsclean-start
@@ -141,7 +142,11 @@ localhost-stop_cmd=ifconfig lo down
 hostname-start_cmd=hostname
 
 # Kernel parameters
-sysctl-start_cmd=sysctl -p
+sysctl-start:VPservice -u: mounts-start
+	$P sysctl -p
+	$P chmod a+w /sys/class/leds/smc::kbd_backlight/brightness
+	$P chmod a+w /sys/class/backlight/gmux_backlight/brightness
+	service -U $target
 
 
 # System
@@ -221,6 +226,15 @@ courier-stop_cmd=pkill '(courier|authdaemon)'
 dhcp-start_cmd=dhcpcd eth0
 dhcp-stop_cmd=dhcpcd eth0 -k
 
+dioc-start:VPservice -u: munged-start
+	$P mount -n /mnt/c
+	$P mount -n /mnt/c/mnt/x
+	service -U $target
+dioc-stop:EVPservice -d:
+	$P umount /mnt/c/mnt/x
+	$P umount /mnt/c
+	service -D $target
+
 diod-start:VPservice -u: munged-start
 	$P diod --export-all
 	service -U $target
@@ -244,7 +258,10 @@ gitd-start:VPservice -u: boot
 	service -U $target
 gitd-stop_cmd=pkill git-daemon
 
-munged-start_cmd=sudo -u munge -g munge munged
+munged-start:VPservice -u: boot
+	$P install -o munge -g munge -d /var/run/munge
+	$P sudo -u munge -g munge munged
+	service -U $target
 munged-stop_cmd=pkill munged
 
 mysql-start:VPservice -u: fsclean-start
@@ -270,6 +287,12 @@ tor-start:VPservice -u: boot
 	service -U $target
 tor-stop_cmd=pkill tor
 
+wpa-start:VPservice -u: mdev-start
+	$P modprobe b43
+	$P exec wpa_supplicant -i wlan0 -c /etc/wpa_supplicant/wpa_supplicant.conf &
+	service -U $target
+wpa-stop_cmd=pkill wpa
+
 # Library 
 # -------
 %-start:QVPservice -u: boot
@@ -280,8 +303,9 @@ tor-stop_cmd=pkill tor
 
 %-stop:QVPservice -d: /
 	if (~ $#($stem^-stop_cmd) 0)
-		echo No such service $stem && exit 0
-	$P $($stem^-stop_cmd)
+		echo No such service $stem
+	if not
+		$P $($stem^-stop_cmd)
 	service -D $target
 
 %-zap:QVPservice -d: /

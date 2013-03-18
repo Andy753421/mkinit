@@ -1,29 +1,23 @@
-# Copyright (C) 2009 Andy Spencer
+# Copyright (C) 2009,2013 Andy Spencer
 # See COPYING for terms
 
-PROGS=src/initctld
-CLEAN=src/*.o
+all:V: src/initctld
 
-default:V: all
+src/initctld: src/initctld.c
+	gcc -Wall -o $target $prereq
 
 install:V: all
-	install -d \
-		$DESTDIR/etc \
-		$DESTDIR/sbin \
-		$DESTDIR/lib/mkinit/bin \
-		$DESTDIR/lib/mkinit/state
-	install -t $DESTDIR/lib/mkinit/bin \
- 		./src/{mkinit,service,respawn,initctld}
-	#install -t $DESTDIR/etc  ./init.mk       
-	ln -sf $DESTDIR/lib/mkinit/bin/mkinit $DESTDIR/sbin
+	install -d $DESTDIR/lib/mkinit/state
+	install -m 755 -D src/mkinit   $DESTDIR/sbin/mkinit
+	install -m 755 -D src/service  $DESTDIR/lib/mkinit/bin/service
+	install -m 755 -D src/respawn  $DESTDIR/lib/mkinit/bin/respawn
+	install -m 755 -D src/initctld $DESTDIR/lib/mkinit/bin/initctld
+	install -m 644 -D init.mk      $DESTDIR/etc/init.mk.example
+	install -m 644 -D services.mk  $DESTDIR/etc/services.mk.example
 
 uninstall:VE:
-	rm -rf /lib/mkinit/bin/
-	rm /lib/mkinit/cmd
-	rm /sbin/mkinit
-	rmdir /lib/mkinit/state/
-	rmdir /lib/mkinit/
+	rm -rf $DESTDIR/lib/mkinit
+	rm $DESTDIR/sbin/mkinit
 
-<../mkcommon
-
-# vim: ft=mk
+clean:
+	rm -f src/initctld
