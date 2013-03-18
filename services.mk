@@ -98,7 +98,7 @@ fsclean-start:VPservice -u: boot
 	$P mv $dirs /.old || true
 	$P mkdir -p $dirs
 	$P chmod 1777 /tmp
-	$P install -m 777 -d /var/run/screen # Fuck you Screen
+	$P install -m 1777 -d /var/run/screen # Fuck you Screen
 	$P exec rm -rf /.old &
 	service -U $target
 
@@ -157,9 +157,7 @@ at-stop_cmd=pkill atd
 cron-start_cmd=cron
 cron-stop_cmd=pkill cron
 
-hddtemp-start:VPservice -u: localhost-start
-	$P hddtemp -d -l 127.0.0.1 /dev/sda
-	service -U $target
+hddtemp-start_cmd=hddtemp -d
 hddtemp-stop_cmd=pkill hddtemp
 
 hwclock-start_cmd=hwclock --hctosys --utc
@@ -186,7 +184,7 @@ cups-start_cmd=cupsd
 cups-stop_cmd=pkill cupsd
 
 dbus-start:VPservice -u: fsclean-start localhost-start
-	$P mkdir -p /var/run/dbus
+	$P install -m 1777 -d /var/run/dbus
 	$P /usr/bin/dbus-daemon --system
 	service -U $target
 dbus-stop_cmd=pkill dbus-daemon
@@ -207,12 +205,17 @@ polipo-stop_cmd=pkill polipo
 
 # Server
 # ------
-apache2-start_cmd=apache2
+apache2-start:VPservice -u: fsclean-start
+	$P install -o apache -g apache -d /var/run/session
+	$P apache2 $apache2-opts
 apache2-stop_cmd=pkill apache2
 
 #bitlbee-start_cmd=sudo -u bitlbee bitlbeed /usr/sbin/bitlbee
 bitlbee-start_cmd=bitlbee -D -u bitlbee
 bitlbee-stop_cmd=pkill bitlbee
+
+denyhosts-start_cmd=denyhosts.py --daemon
+denyhosts-stop_cmd=pkill denyhosts.py
 
 courier-start:VPservice -u: fsclean-start
 	$P install -o mail -g mail -d /var/run/courier
@@ -222,9 +225,6 @@ courier-start:VPservice -u: fsclean-start
 	$P courier-imapd-ssl start
 	service -U $target
 courier-stop_cmd=pkill '(courier|authdaemon)'
-
-dhcp-start_cmd=dhcpcd eth0
-dhcp-stop_cmd=dhcpcd eth0 -k
 
 dioc-start:VPservice -u: munged-start
 	$P mount -n /mnt/c
@@ -243,6 +243,9 @@ diod-stop_cmd=pkill diod
 dovecot-start_cmd=dovecot
 dovecot-stop_cmd=pkill dovecot
 
+eth0-start_cmd=dhcpcd eth0
+eth0-stop_cmd=dhcpcd eth0 -k
+
 exim-start_cmd=exim -bd -q5m
 exim-stop_cmd=pkill exim
 
@@ -251,12 +254,17 @@ gitd-start:VPservice -u: boot
 		'--syslog' \
 		'--export-all' \
 		'--user-path=git' \
-		'--base-path=/home/server/git' \
+		'--interpolated-path=/etc/git/%H%D' \
 		'--listen=0.0.0.0' \
 		'--user=nobody' \
 		'--group=nobody' &
 	service -U $target
 gitd-stop_cmd=pkill git-daemon
+
+mailman-start_cmd=sudo -u mailman -g mailman \
+	/usr/lib64/mailman/bin/mailmanctl -s start
+mailman-stop_cmd=sudo -u mailman -g mailman \
+	/usr/lib64/mailman/bin/mailmanctl stop
 
 munged-start:VPservice -u: boot
 	$P install -o munge -g munge -d /var/run/munge
@@ -276,6 +284,9 @@ ntpd-stop_cmd=pkill ntpd
 privoxy-start_cmd=privoxy --user privoxy.privoxy /etc/privoxy/config
 privoxy-stop_cmd=pkill privoxy
 
+rngd-start_cmd=rngd -b -s64 -t60
+rngd-stop_cmd=pkill rngd
+
 spamd-start_cmd=spamd -u spamd -d
 spamd-stop_cmd=pkill spamd
 
@@ -286,6 +297,11 @@ tor-start:VPservice -u: boot
 	$P exec tor &
 	service -U $target
 tor-stop_cmd=pkill tor
+
+wlan0-start:VPservice -u: wpa-start
+	$P dhcpcd wlan0
+	service -U $target
+wlan0-stop_cmd=dhcpcd wlan0 -k
 
 wpa-start:VPservice -u: mdev-start
 	$P modprobe b43

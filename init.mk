@@ -5,14 +5,15 @@
 MKSHELL=/opt/plan9/bin/rc
 NPROC=10
 
+hddtemp-opts  = -l 0.0.0.0 /dev/sda
 hostname-opts = c
 apache2-opts  = -DSSL -DPHP5
 
 # Runlevels:
 #   single─bare─system─┬─desktop─>
 #                      └─server──>
-server  = apache2 bitlbee dhcp dovecot exim gitd mysql ntpd spamd
-desktop = alsa dhcp getty gpm keymap qingy
+server  = apache2 bitlbee denyhosts diod dovecot eth0 exim gitd mailman mysql ntpd spamd
+desktop = alsa getty gpm keymap qingy wlan0
 system  = at cron hddtemp hwclock sshd swap sysctl syslog
 bare    = cpufreq fsclean hostname initctl localhost mdev modules mounts utmp
 
