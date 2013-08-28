@@ -208,7 +208,8 @@ polipo-stop_cmd=pkill polipo
 # ------
 apache2-start:VPservice -u: fsclean-start
 	$P install -o apache -g apache -d /var/run/session
-	$P apache2 $apache2-opts
+	$P apache2 $(apache2-opts)
+	service -U $target
 apache2-stop_cmd=pkill apache2
 
 #bitlbee-start_cmd=sudo -u bitlbee bitlbeed /usr/sbin/bitlbee
