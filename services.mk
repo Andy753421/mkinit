@@ -164,6 +164,12 @@ hddtemp-stop_cmd=pkill hddtemp
 hwclock-start_cmd=hwclock --hctosys --utc
 hwclock-stop_cmd=hwclock --systohc --utc
 
+mdadm-start_cmd=mdadm --monitor --scan --daemonize
+mdadm-stop_cmd=pkill mdadm
+
+smartd-start_cmd=smartd
+smartd-stop_cmd=pkill smartd
+
 sshd-start_cmd=/usr/sbin/sshd
 sshd-stop_cmd=pkill sshd
 
