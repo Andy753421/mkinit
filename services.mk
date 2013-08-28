@@ -263,6 +263,9 @@ gitd-start:VPservice -u: boot
 	service -U $target
 gitd-stop_cmd=pkill git-daemon
 
+jabberd-start_cmd=sudo -u jabber -g jabber jabberd -b
+jabberd-stop_cmd=pkill --uid jabber
+
 mailman-start_cmd=sudo -u mailman -g mailman \
 	/usr/lib64/mailman/bin/mailmanctl -s start
 mailman-stop_cmd=sudo -u mailman -g mailman \
