@@ -17,7 +17,8 @@ poweroff:V: halt
 reboot:V: halt
 	$P reboot -ndf
 kexec:V: halt
-	$P reboot -ndfk
+	$P kexec -l /usr/src/linux/arch/x86/boot/bzImage --reuse-cmdline
+	$P kexec -e
 
 # Initial setup/shutdown for mkinit
 boot:VEPservice -u: /
