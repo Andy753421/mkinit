@@ -59,7 +59,6 @@ initctl-stop_cmd=fuser -k /dev/initctl
 
 # Proc, mtab, fstab
 mounts-start:VPservice -u: boot
-	$P cp /proc/mounts /etc/mtab
 	$P mdadm -A /dev/md4 /dev/sd[abc]4
 	$P mount -a
 	service -U $target
