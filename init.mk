@@ -12,9 +12,9 @@ apache2-opts  = -DSSL -DPHP5
 # Runlevels:
 #   single─bare─system─┬─desktop─>
 #                      └─server──>
-server  = apache2 bitlbee denyhosts diod dovecot eth0 exim gitd mailman mysql ntpd spamd
+server  = apache2 bitlbee denyhosts diod dovecot eth0 exim gitd jabberd mailman mysql ntpd spamd
 desktop = alsa getty gpm keymap qingy wlan0
-system  = at cron hddtemp hwclock sshd swap sysctl syslog
+system  = at cron hddtemp hwclock mdadm smartd sshd swap sysctl syslog
 bare    = cpufreq fsclean hostname initctl localhost mdev modules mounts utmp
 
 default:V: desktop
