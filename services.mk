@@ -153,7 +153,9 @@ sysctl-start:VPservice -u: mounts-start
 at-start_cmd=atd
 at-stop_cmd=pkill atd
 
-cron-start_cmd=cron
+cron-start:VPservice -u: localhost-start fsclean-start
+	$P cron
+	service -U $target
 cron-stop_cmd=pkill cron
 
 hddtemp-start_cmd=hddtemp -d
@@ -265,7 +267,7 @@ mailman-start_cmd=sudo -u mailman -g mailman \
 mailman-stop_cmd=sudo -u mailman -g mailman \
 	/usr/lib64/mailman/bin/mailmanctl stop
 
-munged-start:VPservice -u: boot
+munged-start:VPservice -u: localhost-start mounts-start
 	$P install -o munge -g munge -d /var/run/munge
 	$P sudo -u munge -g munge munged
 	service -U $target
