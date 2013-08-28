@@ -222,6 +222,9 @@ apache2-stop_cmd=pkill apache2
 bitlbee-start_cmd=bitlbee -D -u bitlbee
 bitlbee-stop_cmd=pkill bitlbee
 
+cups-start_cmd=cupsd
+cups-stop_cmd=pkill cupsd
+
 denyhosts-start_cmd=denyhosts.py --daemon
 denyhosts-stop_cmd=pkill denyhosts.py
 
